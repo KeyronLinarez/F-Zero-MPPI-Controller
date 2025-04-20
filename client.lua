@@ -4,6 +4,7 @@ local getUrl = url .. "/control"
 local postUrl = url .. "/position"  -- Changed to a new endpoint for position data
 print("post url worked")
 local frameCount = 0
+local update
 
 --[[
 
@@ -64,74 +65,42 @@ function request()
         end
     end
 
-    print("X Position: " .. xpos)
-    print("Y Position: " .. ypos)
-    print("Yaw: " .. yaw)
-    print("Velocity: " .. velocity)
-    print("Steering: " .. steering)
-    print("Acceleration: " .. acceleration)
-
-    -- local current_state = string.format("xpos: %d, ypos: %d, yaw: %d, velocity: %.2f", xpos, ypos, yaw, velocity)
     local current_state = ("X-Pos:" .. tostring(xpos) .. " Y-Pos:" .. tostring(ypos) .. " Yaw:" .. tostring(yaw) .. " Velocity:" .. tostring(velocity) .. " Steering:" .. tostring(steering) .. " Acceleration:" .. acceleration)
-
-
-    print(current_state)
-    -- comm.httpSetHeaders({["Content-Type"] = "text/plain"})
 
     comm.httpPost(postUrl, tostring(current_state))
     update = comm.httpGet(getUrl)
-    print("UPDATEEEEE = " .. update)
-
-    -- read input and perform an action
 
 end
 
 while true do
-    -- Poll every 60 frames (i.e. every 0.1 seconds)
+    -- Poll every 60 frames (i.e. every 0.25 seconds)
     if (math.fmod(frameCount, 15) == 0) then
+        -- this does all the math
         request()
+        -- code to extract steering and accel values
+        local steer_pattern = "%p?%d%p%d%d"
+        local match_steer = string.find(update, steer_pattern)
+        steer_client = tonumber(string.sub(update, match_steer, match_steer + 4))
+        -- print("steering = " .. steer_client)
+    
+        local accel_pattern = "Acceleration:%s*(%-?%d+%.%d%d)"
+        local a, b, accel_client = string.find(update, accel_pattern)
+        -- print("acceleration = " .. accel_client)
+        
+    
+        -- ACCELERATE CODE
+        if tonumber(accel_client) >= -0.20 then
+            print("prees B")
+            joypad.set({ B = true }, 1)  -- Press B
+            local buttons = joypad.get(1)  -- Get current button states
+            print(buttons)
+        end
     end
-    emu.frameadvance()
+    -- grab acceleration
+    print("REQUEST FINISHED, BEGIN INPUT SEQUENCE")
+    -- print(update)
+
     frameCount = frameCount + 1
+    emu.frameadvance() 
 end
 
--- print("Begin Program")
-
--- local url = "http://127.0.0.1:8088/bizhawk"
--- print("local url worked")
--- local getUrl = url .. "/peek"
--- print("get url worked")
--- local postUrl = url .. "/pop"
--- print("post url worked")
--- local frameCount = 0
-
--- -- actions performed following server requests
--- function request() 
---     res = comm.httpGet(getUrl)
---     if (res ~= '') then
---         print("Action: " .. res)
---         -- get xspeed and mute game
---         if (res == 'MUTE') then
---             client.SetSoundOn(false)
---             comm.httpPost(postUrl, tostring(xpos))
---         elseif (res == 'UNMUTE') then
---             client.SetSoundOn(true)
---             comm.httpPost(postUrl, "")
---         end
---     end
-
---     -- retrieve and post the xposition
---     local xpos = mainmemory.read_s16_le(0x000B70)
---     print("X Position: " .. xpos)
---     comm.httpPost(postUrl, tostring(xpos))
--- end
-
--- while true do
---     -- Poll every 6 frames (i.e. every 0.1 seconds)
---     if (math.fmod(frameCount, 60) == 0) then 
---         request()
---     end
-
---     emu.frameadvance()
---     frameCount = frameCount + 1
--- end
