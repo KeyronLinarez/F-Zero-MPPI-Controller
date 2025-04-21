@@ -5,6 +5,9 @@ local postUrl = url .. "/position"  -- Changed to a new endpoint for position da
 print("post url worked")
 local frameCount = 0
 local update
+local buttons = joypad.get(1)  -- Get current button states
+local B_button = false
+
 
 --[[
 
@@ -61,11 +64,13 @@ function request()
         if velocity > 0 then
             acceleration = -11.11
         else
-            accleration = 0
+            acceleration = 0
         end
     end
 
+    print("BRUH")
     local current_state = ("X-Pos:" .. tostring(xpos) .. " Y-Pos:" .. tostring(ypos) .. " Yaw:" .. tostring(yaw) .. " Velocity:" .. tostring(velocity) .. " Steering:" .. tostring(steering) .. " Acceleration:" .. acceleration)
+    print(current_state)
 
     comm.httpPost(postUrl, tostring(current_state))
     update = comm.httpGet(getUrl)
@@ -77,10 +82,11 @@ while true do
     if (math.fmod(frameCount, 15) == 0) then
         -- this does all the math
         request()
-        -- code to extract steering and accel values
+        print("MADE IT PAST REQUEST CALL")
+        -- code to extraFct steering and accel values
         local steer_pattern = "%p?%d%p%d%d"
         local match_steer = string.find(update, steer_pattern)
-        steer_client = tonumber(string.sub(update, match_steer, match_steer + 4))
+        local steer_client = tonumber(string.sub(update, match_steer, match_steer + 4))
         -- print("steering = " .. steer_client)
     
         local accel_pattern = "Acceleration:%s*(%-?%d+%.%d%d)"
@@ -89,16 +95,27 @@ while true do
         
     
         -- ACCELERATE CODE
-        if tonumber(accel_client) >= -0.20 then
-            print("prees B")
+        if tonumber(accel_client) >= -0.50 then
+            print("PRESSING B")
             joypad.set({ B = true }, 1)  -- Press B
             local buttons = joypad.get(1)  -- Get current button states
+            B_button = true
             print(buttons)
+        else
+            B_button = false
         end
+
     end
     -- grab acceleration
-    print("REQUEST FINISHED, BEGIN INPUT SEQUENCE")
     -- print(update)
+
+
+    if B_button then
+        joypad.set({ B = true }, 1)  -- Hold B
+    else
+        joypad.set({ B = false }, 1)  -- Release B
+    end
+
 
     frameCount = frameCount + 1
     emu.frameadvance() 
