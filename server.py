@@ -41,7 +41,7 @@ class BizHawkHandler(BaseHTTPRequestHandler):
    
     def do_GET(self):
         print(f"GET request to {self.path}")
-        print(f"self is {self}")
+        # print(f"self is {self}")
         self.path = "/bizhawk/control"
         if self.path == '/bizhawk':
             self._set_headers()
@@ -52,6 +52,13 @@ class BizHawkHandler(BaseHTTPRequestHandler):
 
             print(f"global control was updated to {global_control_sequence} last step")
             print(f"steer output = {steering}")
+            '''
+            positve radian is left
+            negative radian is right
+            zero radian is neutral
+            radians * 57.2958 = degrees!
+            just make positive = left, negative = right
+            '''
             print(f"accel output = {acceleration}")
 
             self._set_headers()
@@ -69,7 +76,7 @@ class BizHawkHandler(BaseHTTPRequestHandler):
         print(f"POST request to {self.path}")
         content_length = int(self.headers.get('Content-Length', 0))
         post_data = self.rfile.read(content_length)
-        print("DO POST RECEIVED")
+        # print("DO POST RECEIVED")
         current = post_data.decode('utf-8')
         print("Got raw string:", current)
 
@@ -100,18 +107,18 @@ class BizHawkHandler(BaseHTTPRequestHandler):
             try:
                 position_data = post_data.decode('utf-8')
     
-                print("YOOOOOO LINE 93, position data = ")
+                # print("YOOOOOO LINE 93, position data = ")
                 print(position_data)
                 # print(f"position_data ", {position_data})
                 # values = re.findall(r'%3A([^\s+]+)', position_data)
                 values = re.findall(r'%3A([^+]+)', position_data)
-                print(f"VALUES = {values}")
-                print(f"x = {values[0]}")
-                print(f"y = {values[1]}")
-                print(f"yaw = {values[2]}")
-                print(f"velocity = {values[3]}")
-                print(f"steering = {values[4]}")
-                print(f"acceleration = {values[5]}")
+                # print(f"VALUES = {values}")
+                # print(f"x = {values[0]}")
+                # print(f"y = {values[1]}")
+                # print(f"yaw = {values[2]}")
+                # print(f"velocity = {values[3]}")
+                # print(f"steering = {values[4]}")
+                # print(f"acceleration = {values[5]}")
                 x = values[0]
                 y = values[1]
                 yaw = values[2]
@@ -123,16 +130,20 @@ class BizHawkHandler(BaseHTTPRequestHandler):
 
                              12,288
                                 ^
-             0, 49,000  <                >   24,806
+             0, 49,152  <                >   24,576
                                 v
-                            37,000
+                            36,864
                 '''
                 # current state = [x, y, yaw, vel]
                 # current_state = [x, y, yaw, velocity]
                 current_state = np.array([x, y, velocity, yaw], dtype=float)
                 print(f"current state = {current_state}")
+
+                
                 # import into server file
                 optimal_input = mppi_controller.calc_control_input(current_state)
+                # print(f"current state = {int(current_state)}")
+
                 # update directional input after calc_control
                 global global_control_sequence 
                 global_control_sequence = optimal_input[0]
@@ -141,7 +152,7 @@ class BizHawkHandler(BaseHTTPRequestHandler):
                 steering = global_control_sequence[0]
                 acceleration = global_control_sequence[1]
                 print(f"optimal input sequence (steer, accel) = {optimal_input[0]}")
-                print("bruhs worked")
+                # print("bruhs worked")
                 self._set_headers()
                 self.wfile.write("Position updated".encode('utf-8'))
 

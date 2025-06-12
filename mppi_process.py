@@ -6,6 +6,18 @@ from typing import Tuple
 import requests
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 class MPPIControllerForPathTracking():
     def __init__(
             self,
@@ -13,7 +25,7 @@ class MPPIControllerForPathTracking():
             wheel_base: float = 2.5, # [m]
             max_steer_abs: float = 0.523, # [rad]
             max_accel_abs: float = 200.000, # [m/s^2]
-            ref_path = np.genfromtxt('data/straight_line.csv', delimiter=',', skip_header=1),
+            ref_path: np.ndarray = np.array([[0.0, 0.0, 0.0, 1.0], [10.0, 0.0, 0.0, 1.0]]),
             horizon_step_T: int = 30,
             number_of_samples_K: int = 1000,
             param_exploration: float = 0.0,
@@ -54,35 +66,25 @@ class MPPIControllerForPathTracking():
         # ref_path info
         self.prev_waypoints_idx = 0
 
-
-    def hello(self):
-        print("hello world")
-        return "Hello world"
-
     def calc_control_input(self, observed_x: np.ndarray) -> Tuple[float, np.ndarray]:
         """calculate optimal control input"""
         # load privious control input sequence
         u = self.u_prev
-        # print("INPUT SEQUENCE U")
-        # print(u)
+        print("INPUT SEQUENCE U")
+        print(u)
 
         # set initial x value from observation
         x0 = observed_x
+
         # get the waypoint closest to current vehicle position 
-        # self._get_nearest_waypoint(x0[0], x0[1], update_prev_idx=True)
-        nearest_idx, ref_x, ref_y, ref_yaw, ref_v = self._get_nearest_waypoint(x0[0], x0[1], update_prev_idx=True)
-        print(f"Nearest waypoint index: {nearest_idx}, ref = ({ref_x}, {ref_y}), vehicle = ({x0[0]}, {x0[1]})")
-        # print(f"ref_x = {ref_x}, ref_y = {ref_y}, nearst waypoint = {self.ref_path[nearest_idx]}")
-        # print(f"observed x = {observed_x}")
-        print("finished waypoints")
+        self._get_nearest_waypoint(x0[0], x0[1], update_prev_idx=True)
         if self.prev_waypoints_idx >= self.ref_path.shape[0]-1:
             print("[ERROR] Reached the end of the reference path.")
             raise IndexError
 
-        # print("right before S")
         # prepare buffer
         S = np.zeros((self.K)) # state cost list
-        # print("s ran")
+
         # sample noise
         epsilon = self._calc_epsilon(self.Sigma, self.K, self.T, self.dim_u) # size is self.K x self.T
 
@@ -127,7 +129,7 @@ class MPPIControllerForPathTracking():
 
         # update control input sequence
         u += w_epsilon
-        print("u += w_epsiolon finished")
+
         # calculate optimal trajectory
         optimal_traj = np.zeros((self.T, self.dim_x))
         if self.visualize_optimal_traj:
@@ -153,7 +155,7 @@ class MPPIControllerForPathTracking():
 
         # return optimal control input and input sequence
         # PRINT THIS OUT!!! U -> CONTROL SIGNAL
-        # print(f"Optimal Traj = {optimal_traj}")
+        print(f"Optimal Traj = {optimal_traj}")
         # print(f"INPUT SEQUENCE = {self.u[0]}")
 
         return u[0], u, optimal_traj, sampled_traj_list
@@ -204,7 +206,7 @@ class MPPIControllerForPathTracking():
     def _get_nearest_waypoint(self, x: float, y: float, update_prev_idx: bool = False):
         """search the closest waypoint to the vehicle on the reference path"""
 
-        SEARCH_IDX_LEN = 25 # [points] forward search range
+        SEARCH_IDX_LEN = 200 # [points] forward search range
         prev_idx = self.prev_waypoints_idx
         dx = [x - ref_x for ref_x in self.ref_path[prev_idx:(prev_idx + SEARCH_IDX_LEN), 0]]
         dy = [y - ref_y for ref_y in self.ref_path[prev_idx:(prev_idx + SEARCH_IDX_LEN), 1]]
@@ -217,13 +219,6 @@ class MPPIControllerForPathTracking():
         ref_y = self.ref_path[nearest_idx,1]
         ref_yaw = self.ref_path[nearest_idx,2]
         ref_v = self.ref_path[nearest_idx,3]
-
-        # print(f"nearest waypoint markers: \n ")
-        # print(f"refx = {ref_x}")
-        # print(f"refy = {ref_y}")
-        # print(f"refyaw = {ref_yaw}")
-        # print(f"refv = {ref_v}")
-        # print(f"? nearest idx = {nearest_idx}?")
 
         # update nearest waypoint index if necessary
         if update_prev_idx:
@@ -287,76 +282,78 @@ class MPPIControllerForPathTracking():
                 xx_mean[-i,d] *= window_size/(i + n_conv - (window_size % 2)) 
         return xx_mean
     
+# simulation settings
+delta_t = 0.05 # [sec]
+sim_steps = 50 # [steps]
+print(f"[INFO] delta_t : {delta_t:.2f}[s] , sim_steps : {sim_steps}[steps], total_sim_time : {delta_t*sim_steps:.2f}[s]")
 
-# if __name__ == '__main__':
-#     # simulation settings
-#     delta_t = 0.05 # [sec]
-#     sim_steps = 50 # [steps]
-#     print(f"[INFO] delta_t : {delta_t:.2f}[s] , sim_steps : {sim_steps}[steps], total_sim_time : {delta_t*sim_steps:.2f}[s]")
+# load and visualize reference path
+ref_path = np.genfromtxt('../data/telemetry.csv', delimiter=',', skip_header=1)
+plt.title("Reference Path")
+plt.plot(ref_path[:,0], ref_path[:,1])
+plt.show()
 
-#     # load and visualize reference path
-#     ref_path = np.genfromtxt('/data/telemetry.csv', delimiter=',', skip_header=1)
-#     plt.title("Reference Path")
-#     plt.plot(ref_path[:,0], ref_path[:,1])
-#     plt.show()
+# initialize a vehicle as a control target
+vehicle = Vehicle(
+    wheel_base=2.5,
+    max_steer_abs=0.523, # [rad]
+    max_accel_abs=200.000, # [m/s^2]
+    ref_path = ref_path[:, 0:2], # ndarray, size is <num_of_waypoints x 2>
+)
 
-#     # initialize a vehicle as a control target
-#     vehicle = Vehicle(
-#         wheel_base=2.5,
-#         max_steer_abs=0.523, # [rad]
-#         max_accel_abs=200.000, # [m/s^2]
-#         ref_path = ref_path[:, 0:2], # ndarray, size is <num_of_waypoints x 2>
-#     )
+vehicle.reset(
+    init_state = np.array([0.0, 1.0, 0.0, 0.0]), # [x[m], y[m], yaw[rad], v[m/s]]
+)
 
-#     vehicle.reset(
-#         init_state = np.array([0.0, 1.0, 0.0, 0.0]), # [x[m], y[m], yaw[rad], v[m/s]]
-#     )
+# initialize a mppi controller for the vehicle
+mppi = MPPIControllerForPathTracking(
+    delta_t = delta_t*2.0, # [s]
+    wheel_base = 2.5, # [m]
+    max_steer_abs = 0.523, # [rad]
+    max_accel_abs = 200.000, # [m/s^2]
+    ref_path = ref_path, # ndarray, size is <num_of_waypoints x 2>
+    horizon_step_T = 20, # [steps]
+    # 5 stepm 20 samples
+    number_of_samples_K = 500, # [samples]
+    param_exploration = 0.0,
+    param_lambda = 100.0,
+    param_alpha = 0.98,
+    sigma = np.array([[0.075, 0.0], [0.0, 2.0]]),
+    stage_cost_weight = np.array([50.0, 50.0, 1.0, 20.0]), # weight for [x, y, yaw, v]
+    terminal_cost_weight = np.array([50.0, 50.0, 1.0, 20.0]), # weight for [x, y, yaw, v]
+    visualze_sampled_trajs = True
+)
 
-#     # initialize a mppi controller for the vehicle
-#     mppi = MPPIControllerForPathTracking(
-#         delta_t = delta_t*2.0, # [s]
-#         wheel_base = 2.5, # [m]
-#         max_steer_abs = 0.523, # [rad]
-#         max_accel_abs = 200.000, # [m/s^2]
-#         ref_path = ref_path, # ndarray, size is <num_of_waypoints x 2>
-#         horizon_step_T = 20, # [steps]
-#         # 5 stepm 20 samples
-#         number_of_samples_K = 500, # [samples]
-#         param_exploration = 0.0,
-#         param_lambda = 100.0,
-#         param_alpha = 0.98,
-#         sigma = np.array([[0.075, 0.0], [0.0, 2.0]]),
-#         stage_cost_weight = np.array([50.0, 50.0, 1.0, 20.0]), # weight for [x, y, yaw, v]
-#         terminal_cost_weight = np.array([50.0, 50.0, 1.0, 20.0]), # weight for [x, y, yaw, v]
-#         visualze_sampled_trajs = True
-#     )
+# simulation loop WILL NOT BE IN SERVER/SCRIPT
+for i in range(sim_steps):
 
+    # get current state of vehicle
+    # LUA POST
+    current_state = vehicle.get_state()
+    print(f"current vehicle state = {vehicle.get_state()}")
+    # THIS WILL BE REPLACED BY A GET STATE
 
-#     # print(f"current state = {current_state}")
+    # RUN WHEN LUA GET REQUEST 
+    try:
+        # calculate input force with MPPI
+                                                                                # import into server file
+        optimal_input, optimal_input_sequence, optimal_traj, sampled_traj_list = mppi.calc_control_input(
+            observed_x = current_state
+        )
+    except IndexError as e:
+        # the vehicle has reached the end of the reference path
+        print("[ERROR] IndexError detected. Terminate simulation.")
+        break
+    ########################################
 
-#     # simulation loop WILL NOT BE IN SERVER/SCRIPT
-#     # for i in range(sim_steps):
+    # print current state and input force
+    print(f"Time: {i*delta_t:>2.2f}[s], x={current_state[0]:>+3.3f}[m], y={current_state[1]:>+3.3f}[m], yaw={current_state[2]:>+3.3f}[rad], v={current_state[3]:>+3.3f}[m/s], steer={optimal_input[0]:>+6.2f}[rad], accel={optimal_input[1]:>+6.2f}[m/s]")
 
-#     #     # get current state of vehicle
-#     #     # LUA POST
-#     #     current_state = vehicle.get_state()
-#     #     print(f"current vehicle state = {vehicle.get_state()}")
-#     #     # THIS WILL BE REPLACED BY A GET STATE
+    # update states of vehicle
+    vehicle.update(u=optimal_input, delta_t=delta_t, optimal_traj=optimal_traj[:, 0:2], sampled_traj_list=sampled_traj_list[:, :, 0:2])
 
-#         # RUN WHEN LUA GET REQUEST 
-#     try:
-#         # calculate input force with MPPI
-#                                                                                 # import into server file
-#         optimal_input, optimal_input_sequence, optimal_traj, sampled_traj_list = mppi.calc_control_input(
-#             observed_x = current_state
-#         )
-#     except IndexError as e:
-#         # the vehicle has reached the end of the reference path
-#         print("[ERROR] IndexError detected. Terminate simulation.")
-        
-
-#     # show animationvehicle.show_animation(interval_ms=int(delta_t))
-#     print(delta_t)
-#     # vehicle.show_animation(interval_ms=(delta_t))
-#     # save animation
-#     # vehicle.save_animation("mppi_pathtracking_demo.mp4", interval=int(delta_t * 1000), movie_writer="ffmpeg") # ffmpeg is required to write mp4 file
+# show animationvehicle.show_animation(interval_ms=int(delta_t))
+print(delta_t)
+vehicle.show_animation(interval_ms=(delta_t))
+# save animation
+# vehicle.save_animation("mppi_pathtracking_demo.mp4", interval=int(delta_t * 1000), movie_writer="ffmpeg") # ffmpeg is required to write mp4 file
